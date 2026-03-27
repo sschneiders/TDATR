@@ -21,7 +21,7 @@ Tables are pervasive in diverse documents, making table recognition (TR) a funda
 TDATR achieves state-of-the-art or highly competitive performance on seven benchmarks without dataset-specific fine-tuning. These include diverse and challenging datasets such as TabRecSet, iFLYTAB-full, PubTabNet, and PubTables-1M.
 
 ## 📦 Model Zoo
-📥 Click and download the model weights.
+[📥 Click](https://huggingface.co/CCWM/TDATR) and download the model weights.
 
 ## 🚀 Quick Start
 
@@ -78,4 +78,40 @@ If you find our work useful in your research, please consider citing:
   booktitle={CVPR},
   year={2026}
 }
+```
+
+## Previous Works
+
+Our lab has also conducted a series of studies on table structure recognition, including **SEM**, **SEMv2**, and **SEMv3**, which provide strong support for non-end-to-end table recognition.
+Starting from **SEM** (*Split, Embed and Merge*), we introduced a split–embed–merge paradigm for accurate table structure recognition.  
+In **SEMv2**, we further improved the split stage by formulating table separation line detection as an instance segmentation problem, which significantly enhanced robustness on complex real-world tables.  
+Most recently, **SEMv3** advanced this line of research with a faster and more robust table separation line detection framework based on keypoint offset regression, achieving strong performance on challenging benchmarks.  
+
+```bibtex
+@article{zhang2022sem,
+  title={Split, Embed and Merge: An Accurate Table Structure Recognizer},
+  author={Zhang, Zhenrong and Zhang, Jianshu and Du, Jun and Wang, Fengren},
+  journal={Pattern Recognition},
+  volume={126},
+  pages={108565},
+  year={2022}
+}
+% GitHub: https://github.com/ZZR8066/SEM
+
+@article{zhang2024semv2,
+  title={SEMv2: Table Separation Line Detection Based on Instance Segmentation},
+  author={Zhang, Zhenrong and Hu, Pengfei and Ma, Jiefeng and Du, Jun and Zhang, Jianshu and Baocai, Yin and Yin, Bing and Liu, Cong},
+  journal={Pattern Recognition},
+  pages={110279},
+  year={2024}
+}
+% GitHub: https://github.com/ZZR8066/SEMv2
+
+@inproceedings{qin2024semv3,
+  title={SEMv3: A Fast and Robust Approach to Table Separation Line Detection},
+  author={Qin, Chunxia and Zhang, Zhenrong and Hu, Pengfei and Liu, Chenyu and Ma, Jiefeng and Du, Jun},
+  booktitle={IJCAI},
+  year={2024}
+}
+% GitHub: https://github.com/Chunchunwumu/SEMv3
 ```

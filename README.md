@@ -1,14 +1,14 @@
 
 # TDATR: Improving End-to-End Table Recognition via Table Detail-Aware Learning and Cell-Level Visual Alignment
 
-[](https://www.google.com/search?q=%23) [](https://www.google.com/search?q=%23)
 
-Official PyTorch implementation and pre-trained weights for the CVPR2026 paper **["TDATR: Improving End-to-End Table Recognition via Table Detail-Aware Learning and Cell-Level Visual Alignment"](https://arxiv.org/abs/2603.22819v1)**.
+Official PyTorch implementation and pre-trained weights for the **CVPR 2026** paper **["TDATR: Improving End-to-End Table Recognition via Table Detail-Aware Learning and Cell-Level Visual Alignment"](https://arxiv.org/abs/2603.22819v1)**.
 
 ## 📖 Introduction
 
 Tables are pervasive in diverse documents, making table recognition (TR) a fundamental task in document analysis. To address the issues of suboptimal integration in modular pipelines and poor generalization in data-constrained end-to-end models, we propose **TDATR**. TDATR improves end-to-end TR through table detail-aware learning and cell-level visual alignment.
 
+![main framework](./main.png)
 ## ✨ Key Features
 
   * **"Perceive-then-Fuse" Strategy:** This approach reduces reliance on large-scale labeled TR data and simplifies the end-to-end sequence modeling of TR.
@@ -29,7 +29,7 @@ TDATR achieves state-of-the-art or highly competitive performance on seven bench
 Our testing environment is based on **CUDA 11.3** and **python 3.7**. We highly recommend using this version or a compatible setup to ensure reproducibility.
 
 ```bash
-git clone https://github.com/yourusername/TDATR.git
+git clone https://github.com/Chunchunwumu/TDATR.git
 cd TDATR
 conda create -n tdatr python==3.7
 pip install -r requirements.txt

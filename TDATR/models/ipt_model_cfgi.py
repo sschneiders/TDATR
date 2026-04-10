@@ -1,4 +1,5 @@
 from contextlib import nullcontext
+from TDATR_utils.device import current_device
 import os
 from typing import Optional
 from functools import partial
@@ -502,7 +503,7 @@ class ModelParallelTransformerEncoderLayer(nn.Module):
         if self.use_cpu_initialization:
             self.device = torch.device('cpu')
         else:
-            self.device = torch.cuda.current_device()
+            self.device = current_device()
         # cfg = gpc.config.model
     
         self.embed_dim = cfg.embed_dim
@@ -768,7 +769,7 @@ class Embedding(nn.Module):
         if self.use_cpu_initialization:
             device = torch.device("cpu")
         else:
-            device = torch.cuda.current_device()
+            device = current_device()
 
         # Word embeddings (parallel).
         self.word_embeddings = VocabParallelEmbedding(
@@ -831,6 +832,7 @@ try:
     from flash_attn import flash_attn_varlen_kvpacked_func
 except:
     flash_attn_varlen_kvpacked_func=None
+import_error_msg = "flash_attn not available"
 
 import math
 from einops import rearrange
@@ -845,7 +847,8 @@ class FlashCrossAttention(nn.Module):
         **kwargs
     ) -> None:
         super(FlashCrossAttention, self).__init__()
-        assert flash_attn_varlen_kvpacked_func is not None or gpc.config.common.npu, \
+        from TDATR_utils.device import use_cpu_mode
+        assert flash_attn_varlen_kvpacked_func is not None or gpc.config.common.npu or use_cpu_mode(), \
             f"import flash attention error on gpu: {import_error_msg}"
         self.head_dim = head_dim
         self.num_head = num_head
@@ -991,7 +994,7 @@ class MultiheadAttention(nn.Module):
                                 dtype = self.dtype,
                                 attention_dropout_p=dropout,
                                 causal=False
-                                )
+                                ) if flash_attn_varlen_kvpacked_func is not None or gpc.config.common.npu else None
         
     def split_heads(self, x, batch_size):
         assert x.shape[-1] % self.num_heads == 0, "Input dimension must be divisible by the number of heads"
@@ -1037,7 +1040,7 @@ class MultiheadAttention(nn.Module):
 
     def forward(self, query, key, value, attn_mask=None):
         if self.training:
-            if gpc.config.model.cross_flash_attn:
+            if gpc.config.model.cross_flash_attn and self.flash_cross_attention is not None:
                 context = self.flash_cross_attention(query, key, value).transpose(0,1).contiguous()
                 # print('FA')
             else:
@@ -1149,7 +1152,7 @@ class ParallelTransformer(PipelineParallelBaseModel):
         if gpc.config.model_parallel.use_cpu_initialization:
             self.device = torch.device('cpu')
         else:
-            self.device = torch.cuda.current_device()
+            self.device = current_device()
         self.dtype = dtype
         self.fp32_residual_connection = gpc.config.common.fp32_residual_connection
 

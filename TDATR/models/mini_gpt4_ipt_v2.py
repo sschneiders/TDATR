@@ -1,3 +1,4 @@
+from TDATR_utils.device import current_device
 import os
 import logging
 import random
@@ -282,7 +283,7 @@ class MiniGPT4(Blip2Base):
                 img_size=2048, patch_size=4, embed_dim=256, depths=(2, 2, 18, 2), 
                 num_heads=(4, 8, 16, 32), window_size=8)
     
-        self.donut_model = self.donut_model.to(torch.cuda.current_device())
+        self.donut_model = self.donut_model.to(current_device())
 
     def init_ipt(self, ):
         cfg = self.cfg
@@ -363,7 +364,7 @@ class MiniGPT4(Blip2Base):
         #             obj=num_parts,
         #             src_rank=gpc.get_ranks_in_group(ParallelMode.GLOBAL)[0], 
         #             group=gpc.get_group(ParallelMode.GLOBAL),
-        #             dist_device=torch.cuda.current_device(),
+        #             dist_device=current_device(),
         #             cur_rank=gpc.get_global_rank(),
         #         )
         # num_parts = num_parts.item()
@@ -395,7 +396,7 @@ class MiniGPT4(Blip2Base):
         #         obj=state_dict_part,
         #         src_rank=gpc.get_ranks_in_group(ParallelMode.GLOBAL)[0], 
         #         group=gpc.get_group(ParallelMode.GLOBAL),
-        #         dist_device=torch.cuda.current_device(),
+        #         dist_device=current_device(),
         #         cur_rank=gpc.get_global_rank(),
         #     )
 
@@ -570,9 +571,8 @@ class MiniGPT4(Blip2Base):
             img_embeds_16 = img_embeds_16.half()
             # img_embeds_32 = img_embeds_32.half()
         else:
-            input_embeds = input_embeds.half()
-            img_embeds_16 = img_embeds_16.half()
-            # img_embeds_32 = img_embeds_32.half()
+            # fp32 mode — keep as float32
+            pass
 
         
         hidden_states, hs_list = self.ipt_model.transformer( 
@@ -1029,12 +1029,12 @@ class IPTBboxEmbedding(nn.Module):
     def __init__(self, bbox_embed_num, bbox_embed_size, ipt_model_embed) -> None:
         super().__init__()
         
-        self.bbox_embedding = nn.Embedding(bbox_embed_num, bbox_embed_size, device=torch.cuda.current_device())
+        self.bbox_embedding = nn.Embedding(bbox_embed_num, bbox_embed_size, device=current_device())
         self.ipt_embedding = ipt_model_embed
         self.ipt_vocab_max = ipt_model_embed.word_embeddings.num_embeddings
         self.bbox_vocab_max = self.ipt_vocab_max + bbox_embed_num
         
-        self.ocr_embedding = nn.Embedding(2, bbox_embed_size, device=torch.cuda.current_device())
+        self.ocr_embedding = nn.Embedding(2, bbox_embed_size, device=current_device())
         self.ocr_vocab_max = self.bbox_vocab_max + 2
 
         # init bbox_embedding

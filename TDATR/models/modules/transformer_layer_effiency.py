@@ -1,5 +1,6 @@
 from argparse import Namespace
 from collections import OrderedDict
+from TDATR_utils.device import current_device
 import re
 from typing import Optional, Callable, Tuple, List
 from dataclasses import dataclass, field
@@ -765,7 +766,7 @@ class ModelParallelTransformerEncoderLayer(nn.Module):
         if self.use_cpu_initialization:
             self.device = torch.device('cpu')
         else:
-            self.device = torch.cuda.current_device()
+            self.device = current_device()
         cfg = gpc.config.model
     
         self.embed_dim = cfg.embed_dim

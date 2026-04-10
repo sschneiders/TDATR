@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+from TDATR_utils.device import current_device
 from functools import partial
 from dataclasses import dataclass, field
 import torch.nn.functional as F

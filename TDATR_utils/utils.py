@@ -1,3 +1,4 @@
+from TDATR_utils.device import current_device
 import logging
 import math
 import os
@@ -136,7 +137,7 @@ def broadcast_from_last_to_first_pipeline_stage(size, dtype, tensor=None):
         else:
             tensor = torch.empty(size,
                                  dtype=dtype,
-                                 device=torch.cuda.current_device())
+                                 device=current_device())
         src = gpc.get_ranks_in_group(ParallelMode.PIPELINE)[-1]
         group = gpc.get_group(ParallelMode.PIPELINE)
         # Broadcast from last stage into the first stage.
@@ -160,7 +161,7 @@ def broadcast_from_last_pipeline_stage(size, dtype, tensor=None):
     else:
         tensor = torch.empty(size,
                              dtype=dtype,
-                             device=torch.cuda.current_device())
+                             device=current_device())
     # Get the group and corresponding source rank.
     src = gpc.get_ranks_in_group(ParallelMode.PIPELINE)[-1]
     group = gpc.get_group(ParallelMode.PIPELINE)
@@ -192,7 +193,7 @@ def copy_from_last_to_first_pipeline_stage(size, dtype, tensor=None):
             else:
                 tensor_ = torch.empty(size,
                                       dtype=dtype,
-                                      device=torch.cuda.current_device())
+                                      device=current_device())
         # Broadcast from last stage into the first stage.
         dist.broadcast(tensor_, src, group)
         # Update the first stage tensor
@@ -210,23 +211,29 @@ def broadcast_list(size, dtype, list_values=None, rank=0):
     world_size = gpc.get_world_size(ParallelMode.MODEL)
     if world_size == 1:
         return torch.tensor(list_values, dtype=dtype,
-                            device=torch.cuda.current_device())
+                            device=current_device())
     tensor = None
     if gpc.get_local_rank(ParallelMode.MODEL) == rank:
         tensor = torch.tensor(list_values, dtype=dtype,
-                              device=torch.cuda.current_device())
+                              device=current_device())
 
     return broadcast_tensor(size, dtype, tensor=tensor, rank=rank)
 
 
 def _is_cuda(tensor):
-    """Check if a tensor is not none and is cuda."""
+    """Check if a tensor is not none and is on the correct device."""
+    from TDATR_utils.device import use_cpu_mode
     assert tensor is not None
+    if use_cpu_mode():
+        return
     assert tensor.is_cuda
 
 
 def _is_cuda_contiguous(tensor):
     """Check if a tensor is not none, is cuda, and is contiguous."""
+    from TDATR_utils.device import use_cpu_mode
+    if use_cpu_mode():
+        return
     _is_cuda(tensor)
     assert tensor.is_contiguous()
 
@@ -244,7 +251,7 @@ def broadcast_tensor(size, dtype, tensor=None, rank=0):
     else:
         tensor = torch.empty(size,
                              dtype=dtype,
-                             device=torch.cuda.current_device())
+                             device=current_device())
 
     src = gpc.get_ranks_in_group(ParallelMode.MODEL)[rank]
     dist.broadcast(tensor, src, group=group)
@@ -610,7 +617,7 @@ def broadcast(tensor: Tensor, src: int, parallel_mode: ParallelMode, async_op: b
         if out.data.dtype == torch.bfloat16:
             assert not async_op, "BF16 does not support async broadcast"
             if gpc.get_world_size(parallel_mode) != 1:
-                out = out.to(torch.cuda.current_device())
+                out = out.to(current_device())
                 dist.broadcast(
                     out,
                     src=src,
@@ -652,7 +659,7 @@ def initialize_weight_gpu(weight: torch.Tensor,
                           init_method: Callable,
                           partition_dim: Optional[int]=None,
                           partition_stride:Optional[int]=1):
-    assert weight.device.type == 'cuda' or weight.device.type == 'npu', f"Expected a cuda tensor, but got {weight.device}."
+    assert weight.device.type == 'cuda' or weight.device.type == 'npu' or weight.device.type == 'cpu', f"Expected a cuda/npu/cpu tensor, but got {weight.device}."
 
     is_parallel = _is_tensor_parallel(partition_dim)
     if not is_parallel:

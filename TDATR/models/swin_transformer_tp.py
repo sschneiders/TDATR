@@ -15,6 +15,7 @@ Modifications and additions for timm hacked together by / Copyright 2021, Ross W
 # Licensed under The MIT License [see LICENSE for details]
 # Written by Ze Liu
 # --------------------------------------------------------
+from TDATR_utils.device import current_device
 import logging
 import math
 from functools import partial
@@ -208,7 +209,7 @@ class MP_WindowAttention(ModelParallelMultiheadAttention):
         win_h, win_w = self.window_size
         self.window_area = win_h * win_w
         # define a parameter table of relative position bias, shape: 2*Wh-1 * 2*Ww-1, nH
-        self.relative_position_bias_table = nn.Parameter(torch.zeros((2 * win_h - 1) * (2 * win_w - 1), self.num_heads_per_partition, device=torch.cuda.current_device(), dtype=self.dtype))
+        self.relative_position_bias_table = nn.Parameter(torch.zeros((2 * win_h - 1) * (2 * win_w - 1), self.num_heads_per_partition, device=current_device(), dtype=self.dtype))
         # get pair-wise relative position index for each token inside the window
         self.register_buffer("relative_position_index", get_relative_position_index(win_h, win_w))
         # trunc_normal_(self.relative_position_bias_table, std=.02)
@@ -711,7 +712,7 @@ class SwinTransformer(nn.Module):
         self.patch_grid = self.patch_embed.grid_size
 
         # absolute position embedding
-        self.absolute_pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim, device=torch.cuda.current_device(), dtype=self.dtype)) if ape else None
+        self.absolute_pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim, device=current_device(), dtype=self.dtype)) if ape else None
         self.pos_drop = nn.Dropout(p=drop_rate)
 
         # build layers

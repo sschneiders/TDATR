@@ -1,3 +1,4 @@
+from TDATR_utils.device import current_device
 """Forward step utilities."""
 from typing import Iterable, Tuple, Union, Optional, Dict
 import torch
@@ -120,7 +121,7 @@ class InferenceParams(object):
 
     @staticmethod
     def allocate_memory(s: int, b: int, h: int, dtype: torch.dtype) -> torch.Tensor:
-        return torch.empty(s, b, h, dtype=dtype, device=torch.cuda.current_device())
+        return torch.empty(s, b, h, dtype=dtype, device=current_device())
 
 
 
@@ -171,7 +172,7 @@ def _allocate_recv_buffer(batch_size, sequence_length):
         dtype = torch.float32
     return torch.empty(recv_size,
                        dtype=dtype,
-                       device=torch.cuda.current_device())
+                       device=current_device())
 
 
 def _forward_step_helper(model, tokens, kv_tokens, position_ids, attention_mask,

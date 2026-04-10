@@ -505,7 +505,7 @@ class BaseDataElement:
         new_data = self.new()
         for k, v in self.items():
             if isinstance(v, (torch.Tensor, BaseDataElement)):
-                v = v.cuda()
+                v = v.cuda() if torch.cuda.is_available() else v.to('cpu')
                 data = {k: v}
                 new_data.set_data(data)
         return new_data

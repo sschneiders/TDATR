@@ -1,3 +1,4 @@
+from TDATR_utils.device import current_device
 import os
 from typing import Optional
 from functools import partial
@@ -45,7 +46,7 @@ class EmbeddingEx(nn.Module):
         if self.use_cpu_initialization:
             device = torch.device("cpu")
         else:
-            device = torch.cuda.current_device()
+            device = current_device()
         
         # Word embeddings (parallel).
         self.word_embeddings = VocabParallelEmbedding(
@@ -112,7 +113,7 @@ class EmbeddingEx_cfgi(nn.Module):
         if self.use_cpu_initialization:
             device = torch.device("cpu")
         else:
-            device = torch.cuda.current_device()
+            device = current_device()
         
         # Word embeddings (parallel).
         self.word_embeddings  = nn.Sequential(

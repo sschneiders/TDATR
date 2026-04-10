@@ -419,4 +419,4 @@ def build_decode_local_sparse_mask(
             ]
         prev_pos = pos
     attention_mask = attention_mask[:, :, cumul_seq_lengths[1:]-1, :]
-    return attention_mask.cuda()
+    return attention_mask.to(cumul_seq_lengths.device)

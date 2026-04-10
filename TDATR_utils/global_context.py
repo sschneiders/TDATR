@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
+from TDATR_utils.device import current_device
 import logging
 import random
 import socket
@@ -105,7 +106,11 @@ class GlobalContext(metaclass=SingletonMeta):
 
     def gather_workers(self) -> None:
         hostname = socket.gethostname()
-        device_id = torch.cuda.current_device()
+        from TDATR_utils.device import use_cpu_mode
+        if use_cpu_mode():
+            device_id = -1
+        else:
+            device_id = torch.cuda.current_device()
         worker = Worker(hostname=hostname,
                         device_id=device_id,
                         global_rank=self.get_global_rank(),
@@ -595,6 +600,9 @@ class GlobalContext(metaclass=SingletonMeta):
         Args:
            device_ordinal (int, optional): the device id to be bound to
         """
+        from TDATR_utils.device import use_cpu_mode
+        if use_cpu_mode():
+            return
         global_rank = self.get_global_rank()
         if device_ordinal is None:
             devices_per_node = torch.cuda.device_count()
@@ -635,7 +643,7 @@ class GlobalMemoryBuffer:
             self.buffer[(name, dtype)] = \
                 torch.empty(required_len,
                             dtype=dtype,
-                            device=torch.cuda.current_device(),
+                            device=current_device(),
                             requires_grad=False)
 
         return self.buffer[(name, dtype)][0:required_len].view(*tensor_shape)

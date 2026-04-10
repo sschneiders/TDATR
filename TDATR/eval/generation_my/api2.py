@@ -1,4 +1,5 @@
 """Inference API."""
+from TDATR_utils.device import current_device
 import torch
 
 from TDATR_utils.global_context import global_context as gpc
@@ -66,7 +67,7 @@ def generate2(model,
     context_tokens_tensor = tokens
     context_length_tensor = inputs_embeds_length
 
-    context_chat_length_tensor = torch.cuda.LongTensor(context_length_tensor)
+    context_chat_length_tensor = torch.tensor(context_length_tensor, dtype=torch.long, device=current_device())
     
     gen_outputs= generate_tokens_probs_and_return_on_first_stage(
         model, tokenizer, context_tokens_tensor, inputs_embeds, context_length_tensor,

@@ -1,4 +1,5 @@
 from typing import Optional, Callable
+from TDATR_utils.device import current_device
 import inspect
 from functools import partial
 
@@ -76,7 +77,7 @@ class VocabParallelEmbedding(torch.nn.Module):
         else:
             self.weight = Parameter(torch.empty(
                 self.num_embeddings_per_partition, self.embedding_dim,
-                device=torch.cuda.current_device(), dtype=self.dtype))
+                device=current_device(), dtype=self.dtype))
         
         self.reset_parameters()
     
@@ -228,7 +229,7 @@ class LinearWithAsyncCommunication(torch.autograd.Function):
             assert not ctx.async_grad_allreduce
             dim_size = list(input.size())
             sub_grad_input = torch.empty(dim_size, dtype=input.dtype,
-                                         device=torch.cuda.current_device(),
+                                         device=current_device(),
                                          requires_grad=False)
             # reduce_scatter
             if hasattr(torch.distributed, "reduce_scatter_tensor"):
@@ -339,7 +340,7 @@ class ColumnParallelLinear(torch.nn.Module):
         else:
             self.weight = Parameter(torch.empty(self.output_size_per_partition,
                                                 self.input_size,
-                                                device=torch.cuda.current_device(),
+                                                device=current_device(),
                                                 dtype=self.dtype))
 
         if bias:
@@ -348,7 +349,7 @@ class ColumnParallelLinear(torch.nn.Module):
                                                   dtype=self.dtype))
             else:
                 self.bias = Parameter(torch.empty(self.output_size_per_partition,
-                                                  device=torch.cuda.current_device(),
+                                                  device=current_device(),
                                                   dtype=self.dtype))
         else:
             self.register_parameter('bias', None)
@@ -493,14 +494,14 @@ class RowParallelLinear(torch.nn.Module):
         else:
             self.weight = Parameter(torch.empty(
                 self.output_size, self.input_size_per_partition,
-                device=torch.cuda.current_device(), dtype=self.dtype))
+                device=current_device(), dtype=self.dtype))
         if bias:
             if self.use_cpu_initialization:
                 self.bias = Parameter(torch.empty(self.output_size,
                                                   dtype=self.dtype))
             else:
                 self.bias = Parameter(torch.empty(
-                    self.output_size, device=torch.cuda.current_device(),
+                    self.output_size, device=current_device(),
                     dtype=self.dtype))
             setattr(self.bias, 'sequence_parallel', self.sequence_parallel)
         else:

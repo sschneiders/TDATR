@@ -35,6 +35,7 @@ from TDATR_utils.initialize import initialize_hulk, hydra_init
 from TDATR_utils.utils import convert_namespace_to_omegaconf, omegaconf_no_object_check
 from TDATR_utils.call_main import call_main
 
+from TDATR_utils.device import get_device
 from TDATR_utils.global_variables import ParallelMode
 from TDATR_utils.global_context import global_context as gpc
 
@@ -77,9 +78,11 @@ def encode_img(model, dataset, image_path, device):
     image_padding_shape = image.shape[1:]
     image = image.unsqueeze(0).to(device)
     image_embed, donut_outs = model.encode_img(image, image.clone().detach())
-    donut_outs = [ i.half() for i in donut_outs]
+    if device.type != 'cpu':
+        donut_outs = [ i.half() for i in donut_outs]
     det_input = [donut_outs, scale, img_shape,scale_r, image_padding_shape]
-    image_embed = image_embed.half()
+    if device.type != 'cpu':
+        image_embed = image_embed.half()
     image_embed = image_embed.permute(1,0,2)    
     return image_embed, det_input
     
@@ -229,9 +232,12 @@ def main(cfg) -> None:
     dataset = Dataset_infer()    
     
     eos_token = '<end>'
-    device = torch.device("cuda")
+    from TDATR_utils.device import use_cpu_mode
+    device = get_device()
 
-    model = MiniGPT4(cfg).half()
+    model = MiniGPT4(cfg)
+    if not use_cpu_mode():
+        model = model.half()
     tokenizer = model.ipt_tokenizer
     logger.info("model: {}".format(model.__class__.__name__))
 

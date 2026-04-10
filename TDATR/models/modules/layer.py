@@ -1,3 +1,4 @@
+from TDATR_utils.device import current_device
 import os
 from typing import Optional
 from functools import partial
@@ -94,7 +95,7 @@ class _OutChannelParallelConv(nn.Module):
             self.weight = Parameter(torch.empty(self.out_channels_per_partition,
                                                 self.in_channels,
                                                 *kernel_size,
-                                                device=torch.cuda.current_device(),
+                                                device=current_device(),
                                                 dtype=params_dtype))
         
         if bias:
@@ -103,7 +104,7 @@ class _OutChannelParallelConv(nn.Module):
                                                 dtype=params_dtype))
             else:
                 self.bias = Parameter(torch.empty(self.out_channels_per_partition, 
-                                                device=torch.cuda.current_device(),
+                                                device=current_device(),
                                                 dtype=params_dtype))
         else:
             self.register_parameter('bias', None)

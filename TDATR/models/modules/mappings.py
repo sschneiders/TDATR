@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from TDATR_utils.device import current_device
 import torch
 
 from TDATR_utils.utils import split_tensor
@@ -92,7 +93,7 @@ def _reduce_scatter(input_, dim=-1):
     dim_size[0] = dim_size[0] // world_size
    
     output = torch.empty(dim_size, dtype=input_.dtype,
-                         device=torch.cuda.current_device())
+                         device=current_device())
     if hasattr(torch.distributed, "reduce_scatter_tensor"):
         torch.distributed.reduce_scatter_tensor(
             output, 

@@ -275,8 +275,10 @@ def _check_other_cfgs(cfg: HulkConfig) -> None:
             cfg.distributed_training.accumulate_allreduce_grads_in_fp32, \
                 f"Please use *megatron_ddp* and enable accumulate_allreduce_grads_in_fp32 when training with bf16"
     
-    if cfg.common.bf16 == False and cfg.common.fp16 == False:
-        assert cfg.distributed_training.ddp_backend != "megatron_ddp", "`megatron_ddp` has been disabled in fp32 mode."
+    from TDATR_utils.device import use_cpu_mode
+    if not use_cpu_mode():
+        if cfg.common.bf16 == False and cfg.common.fp16 == False:
+            assert cfg.distributed_training.ddp_backend != "megatron_ddp", "`megatron_ddp` has been disabled in fp32 mode."
 
     assert cfg.common.fp16_no_flatten_grads == True, "`fp16_no_flatten_grads=false` has been disabled for use!"
 
@@ -309,10 +311,14 @@ def check_cfgs(cfg: HulkConfig) -> None:
 
 
 def init_distributed(cfg: HulkConfig) -> None:
+    from TDATR_utils.device import use_cpu_mode
+    cpu_mode = use_cpu_mode()
+
     # setting for debug, which enable the same initialization in the same machine
-    cudnn.benchmark = True if cfg.common.cudnn_benchmark else False
-    cudnn.deterministic = True if cfg.common.cudnn_deterministic else False
-    cudnn.enabled = True if cfg.common.cudnn_enabled else False
+    if not cpu_mode:
+        cudnn.benchmark = True if cfg.common.cudnn_benchmark else False
+        cudnn.deterministic = True if cfg.common.cudnn_deterministic else False
+        cudnn.enabled = True if cfg.common.cudnn_enabled else False
 
     if isinstance(cfg, Namespace):
         from TDATR_utils.utils import convert_namespace_to_omegaconf
@@ -325,14 +331,23 @@ def init_distributed(cfg: HulkConfig) -> None:
         raise RuntimeError(
             "Distributed is already initialized, cannot initialize twice!"
         )
-    assert torch.cuda.is_available()
-    device = dist_cfg.distributed_rank % torch.cuda.device_count()
-    if dist_cfg.distributed_local_rank is not None:
-        assert dist_cfg.distributed_local_rank == device, \
-            'expected local-rank to be the same as rank % device-count.'
+
+    if cpu_mode:
+        device = 0
+        dist_cfg.distributed_local_rank = 0
+        dist_cfg.device_id = 0
+        # Force gloo backend for CPU mode
+        backend = "gloo"
     else:
-        dist_cfg.distributed_local_rank = device
-    dist_cfg.device_id = dist_cfg.distributed_local_rank
+        assert torch.cuda.is_available()
+        device = dist_cfg.distributed_rank % torch.cuda.device_count()
+        if dist_cfg.distributed_local_rank is not None:
+            assert dist_cfg.distributed_local_rank == device, \
+                'expected local-rank to be the same as rank % device-count.'
+        else:
+            dist_cfg.distributed_local_rank = device
+        dist_cfg.device_id = dist_cfg.distributed_local_rank
+        backend = dist_cfg.distributed_backend
 
     logger.info(
         "distributed init (rank {}): {}".format(
@@ -340,7 +355,8 @@ def init_distributed(cfg: HulkConfig) -> None:
             dist_cfg.distributed_init_method,
         )
     )
-    torch.cuda.set_device(device)
+    if not cpu_mode:
+        torch.cuda.set_device(device)
 
     logger.warning(
         "[TDATR_utils_log] sleep success, distributed init (rank {}): {}".format(
@@ -353,7 +369,7 @@ def init_distributed(cfg: HulkConfig) -> None:
     gpc.init_global_dist(
         rank=dist_cfg.distributed_rank,
         world_size=dist_cfg.distributed_world_size,
-        backend=dist_cfg.distributed_backend,
+        backend=backend,
         host=dist_cfg.distributed_master_addr,
         port=dist_cfg.distributed_master_port
     )
@@ -377,8 +393,8 @@ def init_distributed(cfg: HulkConfig) -> None:
         )
     )
 
-    # perform a dummy all-reduce to initialize the NCCL communicator
-    if torch.cuda.is_available():
+    # perform a dummy all-reduce to initialize the communicator
+    if not cpu_mode and torch.cuda.is_available():
         logger.info(
             "{} | {}/{} | Perform a dummy all-reduce to initialize the NCCL communicator".format(
                 socket.gethostname(), dist_cfg.distributed_rank, dist_cfg.distributed_world_size

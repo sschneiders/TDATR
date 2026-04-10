@@ -1,0 +1,51 @@
+# @package _global_
+
+common:
+  fp16: false
+  memory_efficient_fp16: false
+  amp: false
+  fp16_no_flatten_grads: true
+  layernorm_fp32: true
+
+  cudnn_benchmark: false
+  cudnn_deterministic: false
+  cudnn_enabled: false
+
+  log_format: json
+  log_interval: 20
+  tensorboard_logdir: tb
+
+task:
+  _name: minigpt4
+  seq_length: 8192
+  seed: 1234
+  use_ocr_plug: false
+
+model_parallel:
+  num_micro_batch: 1
+  micro_batch_size: 1
+  pipeline_model_parallel_size: 1
+  tensor_model_parallel_size: 1
+  use_cpu_initialization: True
+  sequence_parallel: False
+  recompute_granularity: full
+
+distributed_training:
+  ddp_backend: gloo
+  zero_sharding: os_v2
+
+model:
+  _name: model_parallel_mmu
+  freeze_vit: true
+  freeze_qformer: false
+  freeze_bbox_embed: true
+  vit_precision: fp32
+
+  num_query_token: 2048
+  image_size: 1024
+  vit_model: eva_clip_g
+  qformer_name: resampler-base
+  q_former_model: null
+  ckpt: null
+
+  ibos_token: "<Img>"

@@ -290,7 +290,6 @@ class SparseSelfAttention(nn.Module):
         assert self.num_kv_head == self.num_head, "naive flash attention v1 has not yet supported GQA"
         output = self.fwd_naiive(q, k, v, seq_lengths=seq_lengths)
         
-        print(f"[DEBUG FWD_NAIIVE] output={output.shape} q_in={q.shape}", flush=True)
         return output
 
     def fwd_naiive(

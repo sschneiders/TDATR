@@ -111,7 +111,7 @@ class SparseSelfAttention(nn.Module):
             )
 
         self.use_naiive = use_naiive
-        if torch.cuda.get_device_capability(0) is not None and torch.cuda.get_device_capability(0)[0] < 7.5:
+        if torch.cuda.is_available() and torch.cuda.get_device_capability(0) is not None and torch.cuda.get_device_capability(0)[0] < 7.5:
             warnings.warn(
                 "NOTE: your device does NOT support flash attention, back to naiive"
             )
@@ -265,14 +265,14 @@ class SparseSelfAttention(nn.Module):
             if q.shape[1] == 1:
                 assert seq_lengths is None, f"`fwd_onestep` don't support `seq_lengths`"
                 return self.fwd_onestep(q, k, v)
-        elif q.device.type == 'npu':
+        else:
+            # Both NPU and CPU: keep 4D (T, B, H, D)
             q = (
                 q.contiguous()
                 .view(
                     tgt_len, bsz, self.num_head, self.head_dim
-                )  # [tgt_len, batch * num_head, head_dim]
+                )
             )
-            # [src_len, batch, num_head * head_dim] -> [batch * num_head, src_len, head_dim]
             k = k.contiguous().view(-1, bsz, self.num_kv_head, self.head_dim)
             v = v.contiguous().view(-1, bsz, self.num_kv_head, self.head_dim)
 
@@ -282,7 +282,7 @@ class SparseSelfAttention(nn.Module):
         if in_generate_engine and inference_params.status.name == 'encode':
             k, v = inference_params.update(inference_params.layer_idx, k, v)
         
-        if self.use_naiive and q.device.type == 'npu':
+        if self.use_naiive and q.device.type != 'cuda':
             q = q.transpose(0, 1)
             k = k.transpose(0, 1)
             v = v.transpose(0, 1)
@@ -290,6 +290,7 @@ class SparseSelfAttention(nn.Module):
         assert self.num_kv_head == self.num_head, "naive flash attention v1 has not yet supported GQA"
         output = self.fwd_naiive(q, k, v, seq_lengths=seq_lengths)
         
+        print(f"[DEBUG FWD_NAIIVE] output={output.shape} q_in={q.shape}", flush=True)
         return output
 
     def fwd_naiive(
@@ -301,46 +302,88 @@ class SparseSelfAttention(nn.Module):
         fullmask: Optional[torch.BoolTensor] = None,
         seq_lengths: Optional[torch.LongTensor] = None,
     ) -> torch.Tensor:
-        nhead, hdim = q.shape[-2:]
-        bsz = q.shape[0]
-        tgt_len, src_len = q.shape[1], k.shape[1]
-        # BTHD- >(BH)TD
-        q = q.permute(0, 2, 1, 3).contiguous().view(-1, tgt_len, hdim)
-        k = k.permute(0, 2, 1, 3).contiguous().view(-1, src_len, hdim)
-        v = v.permute(0, 2, 1, 3).contiguous().view(-1, src_len, hdim)
-
-        q = q.float() * self.norm_factor
-        k = k.float()
-        attn_weights = torch.bmm(q, k.transpose(1, 2))
-        if use_mask:
-            if fullmask is None:
-                if seq_lengths is None:
-                    fullmask = self.get_fullmask(q.device)
-                    fullmask = fullmask[-tgt_len:, -src_len:]
+        if q.dim() == 3:
+            # 3D input (B*H, T, D)
+            bsz = q.shape[0] // self.num_head
+            tgt_len, src_len = q.shape[1], k.shape[1]
+            hdim = q.shape[-1]
+            q2 = (q.float() * self.norm_factor).to(v.dtype)
+            k2 = k.float().to(v.dtype)
+            v2 = v
+            attn_weights = torch.bmm(q2.float(), k2.float().transpose(1, 2))
+            if use_mask:
+                if fullmask is None:
+                    if seq_lengths is None:
+                        fullmask = self.get_fullmask(q2.device)
+                        fullmask = fullmask[-tgt_len:, -src_len:]
+                    else:
+                        fullmask = build_local_sparse_mask(
+                            seq_lengths, self.local_size, src_len, smooth=self.use_smooth
+                        ).to(q2.device)
+                        fullmask = fullmask.expand(
+                            bsz, self.num_head, src_len, src_len
+                        ).reshape(-1, src_len, src_len)
+                        fullmask = fullmask[:, -tgt_len:, -src_len:]
                 else:
-                    fullmask = build_local_sparse_mask(
-                        seq_lengths, self.local_size, src_len, smooth=self.use_smooth
-                    ).to(q.device)
+                    tgt_len_f, src_len_f = fullmask.size()[-2:]
                     fullmask = fullmask.expand(
-                        bsz, self.num_head, src_len, src_len
-                    ).reshape(-1, src_len, src_len)
-                    fullmask = fullmask[:, -tgt_len:, -src_len:]
-            else:
-                tgt_len, src_len = fullmask.size()[-2:]
-                fullmask = fullmask.expand(
-                    bsz, self.num_head, tgt_len, src_len
-                ).reshape(-1, tgt_len, src_len)
-            attn_weights = attn_weights.masked_fill_(fullmask, -10000.0)
+                        bsz, self.num_head, tgt_len_f, src_len_f
+                    ).reshape(-1, tgt_len_f, src_len_f)
+                attn_weights = attn_weights.masked_fill_(fullmask, -10000.0)
 
-        attention_probs = F.softmax(attn_weights, dim=-1).to(v)
-        attention_probs = F.dropout(
-            attention_probs, p=self.dropout_p, training=self.training
-        )
-        context = torch.bmm(attention_probs, v)
+            attention_probs = F.softmax(attn_weights, dim=-1).to(v2)
+            attention_probs = F.dropout(
+                attention_probs, p=self.dropout_p, training=self.training
+            )
+            context = torch.bmm(attention_probs, v2)
+            output = context.transpose(0, 1).contiguous().view(tgt_len, bsz, self.num_head * hdim)
+            return output
+        else:
+            # 4D input (B, T, H, D) — transposed from (T, B, H, D) for naive attn
+            B, T, H, D = q.shape
+            bsz = B
+            tgt_len = T
+            hdim = D
+            nhead = H
+            src_len = k.shape[1]
+            q2 = (q.float() * self.norm_factor).to(v.dtype)
+            k2 = k.float().to(v.dtype)
+            v2 = v.to(q2.dtype)
+            # (B, T, H, D) @ (B, S, H, D).T -> (B, T, H, S) via einsum
+            # Rearrange to (B*H, T, D) for bmm
+            q3 = q2.permute(0, 2, 1, 3).contiguous().view(bsz * nhead, tgt_len, hdim)
+            k3 = k2.permute(0, 2, 1, 3).contiguous().view(bsz * nhead, src_len, hdim)
+            v3 = v2.permute(0, 2, 1, 3).contiguous().view(bsz * nhead, src_len, hdim)
+            attn_weights = torch.bmm(q3.float(), k3.float().transpose(1, 2))
+            if use_mask:
+                if fullmask is None:
+                    if seq_lengths is None:
+                        fullmask = self.get_fullmask(q3.device)
+                        fullmask = fullmask[-tgt_len:, -src_len:]
+                    else:
+                        fullmask = build_local_sparse_mask(
+                            seq_lengths, self.local_size, src_len, smooth=self.use_smooth
+                        ).to(q3.device)
+                        fullmask = fullmask.expand(
+                            bsz, nhead, src_len, src_len
+                        ).reshape(-1, src_len, src_len)
+                        fullmask = fullmask[:, -tgt_len:, -src_len:]
+                else:
+                    tgt_len_f, src_len_f = fullmask.size()[-2:]
+                    fullmask = fullmask.expand(
+                        bsz, nhead, tgt_len_f, src_len_f
+                    ).reshape(-1, tgt_len_f, src_len_f)
+                attn_weights = attn_weights.masked_fill_(fullmask, -10000.0)
 
-        output = context.transpose(0, 1).contiguous().view(tgt_len, bsz, -1)
-
-        return output
+            attention_probs = F.softmax(attn_weights, dim=-1).to(v3)
+            attention_probs = F.dropout(
+                attention_probs, p=self.dropout_p, training=self.training
+            )
+            # (B*H, T, S) @ (B*H, S, D) -> (B*H, T, D)
+            context = torch.bmm(attention_probs, v3)
+            # (B*H, T, D) -> (T, B, H*D)
+            output = context.transpose(0, 1).contiguous().view(tgt_len, bsz, nhead * hdim)
+            return output
 
     def _load_from_state_dict(
         self, state_dict: Dict, prefix: int, *args, **kwargs

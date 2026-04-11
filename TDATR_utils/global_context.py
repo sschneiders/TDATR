@@ -168,7 +168,8 @@ class GlobalContext(metaclass=SingletonMeta):
         """
 
         # Ensure that different pipeline MP states get different seed
-        seed = seed + (100 * self._local_ranks.get(ParallelMode.PIPELINE, 0))
+        pipeline_rank = self._local_ranks.get(ParallelMode.PIPELINE, 0) or 0
+        seed = seed + (100 * pipeline_rank)
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)

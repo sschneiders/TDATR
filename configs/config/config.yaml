@@ -1,25 +1,18 @@
 # @package _global_
 
-# CPU-only inference config for TDATR
-# Based on original config.yaml with all distributed/training settings adjusted for single-CPU inference
-
 common:
-  fp16: false
-  bf16: false
+  fp16: true
   memory_efficient_fp16: false
-  memory_efficient_bf16: false
   amp: false
   fp16_no_flatten_grads: true
   layernorm_fp32: true
+
   cudnn_benchmark: false
   cudnn_deterministic: false
-  cudnn_enabled: false
+
   log_format: json
   log_interval: 20
   tensorboard_logdir: tb
-  cpu: true
-  gloo_group_enabled: true
-  seed: 1234
 
 task:
   _name: minigpt4
@@ -32,29 +25,13 @@ model_parallel:
   micro_batch_size: 1
   pipeline_model_parallel_size: 1
   tensor_model_parallel_size: 1
-  use_cpu_initialization: true
-  sequence_parallel: false
-  sequence_parallel_size: 1
-  tensor_model_parallel_mode: none
+  use_cpu_initialization: False
+  sequence_parallel: False
   recompute_granularity: full
-  virtual_pipeline_model_parallel_size: null
-  async_tensor_model_parallel_allreduce: false
-  scatter_gather_tensors_in_pipeline: false
 
 distributed_training:
-  ddp_backend: no_c10d
+  ddp_backend: pytorch_ddp
   zero_sharding: os_v2
-  distributed_init_method: null
-  distributed_rank: 0
-  distributed_world_size: 1
-  distributed_local_rank: 0
-  distributed_no_spawn: true
-  distributed_master_addr: localhost
-  distributed_master_port: 29500
-  device_id: 0
-  cpu_offload: false
-  use_sharded_state: false
-  accumulate_allreduce_grads_in_fp32: false
 
 model:
   _name: model_parallel_mmu
@@ -63,35 +40,37 @@ model:
   freeze_bbox_embed: true
   vit_precision: fp16
 
-  num_query_token: 2048
+  num_query_token: 2048 #2048 #1024 #
   image_size: 1024
   vit_model: eva_clip_g
-  qformer_name: resampler-base
+  qformer_name: resampler-base  # bert-base-uncased | bert-base-multilingual-cased
   q_former_model: null
-  ckpt: /app/model.pt
+  ckpt: null
 
-  ibos_token: "<Img>"
-  ieos_token: "</Img>"
-
-  use_naiive: true
-  cross_flash_attn: false
-  use_flash: false
-  use_vit_encoder: false
-  use_donut_encoder: true
-  use_cfgi: true
-  rectification_rotate_flag: false
-  rectification_textline_height_flag: false
+  ibos_token: "<Img>"    # used
+  ieos_token: "</Img>"    # used
 
   lora:
     apply_lora: false
+    only_train_lora: false
+    lora_rank: 20 #20
+    lora_alpha: 256
+    lora_dropout: 0.0
+    adapt_q: true
+    adapt_k: true
+    adapt_v: true
+    adapt_o: true
+    adapt_fc1: true
+    adapt_fc2: true
+    merge_weights: false
 
-  # IPT decoder config (1.3B)
+  # ipt 1.3B config
   embed_dim: 2048
   mlp_embed_dim: 11264
   num_layers: 6
   normalize_before: true
   num_heads: 32
-  padded_vocab_size: 60000
+  padded_vocab_size: 60000 #60000
   max_position_embeddings: 6144
   attention_dropout_p: 0.0
   hidden_dropout_p: 0.0
@@ -105,11 +84,15 @@ model:
   bias_dropout_fusion: true
   from_pretrained: null
   parallel_output: true
+  cross_flash_attn: true
   position_type: rope
   gate_gelu: true
-  use_sparse: false
+  use_flash: true
+  use_sparse: true
   sparse_local_size: 2048
-  end_sym: <iflytek_end>
+  use_naiive: true
+  end_sym: <iflytek_end>    # deprecation, using eos_token instead
+
 
   CFGI_CFG:
     embed_dim: 2048
@@ -117,7 +100,7 @@ model:
     num_layers: 2
     normalize_before: true
     num_heads: 32
-    padded_vocab_size: 60000
+    padded_vocab_size: 60000 #60000
     max_position_embeddings: 6144
     attention_dropout_p: 0.0
     hidden_dropout_p: 0.0
@@ -130,28 +113,21 @@ model:
     apply_residual_connection_post_layernorm: false
     bias_dropout_fusion: true
     parallel_output: true
-    cross_flash_attn: false
-    position_type: null
+    cross_flash_attn: true
+    position_type: null # 不需要再解码的时候关注位置，而是编码logical位置
     gate_gelu: true
-    use_flash: false
+    use_flash: true
     use_sparse: false
     sparse_local_size: 2048
     use_naiive: true
-    end_sym: <iflytek_end>
+    end_sym: <iflytek_end>    # deprecation, using eos_token instead
     logical_position_type: rope
     cfgi_rope: true
+
 
 tokenizer:
   _name: bbox_tokenizer_minigpt4
   vocab_file: TDATR/tokenizers/tokenizer
-
-dataset:
-  batch_size: 1
-  batch_size_valid: 1
-  num_parts: 1
-
-optimization:
-  update_freq: [1]
 
 generation:
   max_len: 4096
@@ -159,29 +135,4 @@ generation:
   sampling_topp: 0.0
   sampling_topk: 1
   no_repeat_ngram_size: 15
-  min_len: 0
-  penalty: 1.0
-  prompt_path: /app/test_input/test_images.json
-
-zero:
-  stage: 0
-
-checkpoint:
-  load_path: /app/model.pt
-
-criterion:
-  _name: cross_entropy
-
-optimizer:
-  params:
-    lr: 1e-4
-
-ema:
-  store_ema: false
-
-rlhf:
-  policy_num_micro_batch: 0
-  critic_num_micro_batch: 0
-
-lora:
-  apply_lora: false
+  prompt_path: None

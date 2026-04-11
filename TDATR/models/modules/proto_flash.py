@@ -259,7 +259,16 @@ class SparseSelfAttention(nn.Module):
         )
         q = q*self.norm_factor
         if self.use_rope:
-            q,k= self.rotary_embedding(q,k)
+            # rotary_embedding expects (B, T, H, D), reshape from (B*H, T, D)
+            B = bsz
+            H = self.num_head
+            T_q, D = q.shape[1], q.shape[2]
+            T_k = k.shape[1]
+            q4 = q.view(B, H, T_q, D).contiguous()
+            k4 = k.view(B, H, T_k, D).contiguous()
+            q4, k4 = self.rotary_embedding(q4, k4)
+            q = q4.view(B * H, T_q, D)
+            k = k4.view(B * H, T_k, D)
         
         # self.dropout_p=0.0
         # out1= self.fwd_naiive(q,k,v, attention_mask)

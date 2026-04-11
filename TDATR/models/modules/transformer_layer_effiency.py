@@ -591,6 +591,7 @@ class ModelParallelMultiheadAttention(nn.Module):
                     self.dtype
                 )
 
+
         if self.self_attention:
             # [len, batch, num_head * head_dim] -> [len, batch, num_head * 3 * head_dim]
             q_k_v, _ = self.q_k_v_proj(query)

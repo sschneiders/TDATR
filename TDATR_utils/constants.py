@@ -83,7 +83,8 @@ INITIALIZER_MAPPING = {
     '3d': 'Initializer_3D',
     'sequence': 'Initializer_Sequence',
     'model': 'Initializer_Model',
-    'moe': 'Initializer_Moe'
+    'moe': 'Initializer_Moe',
+    'none': 'Initializer_Data',  # CPU mode: no tensor parallelism, reuse data group
 }
 
 # 3D parallelism groups

@@ -231,17 +231,18 @@ class RotaryPositionalTransform(torch.nn.Module):
     def get_cos_sin(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
-            x: Input x with B XT X  H X D
-            seq_len: Sequence length of input x
+            x: Input x — (T, B, H, D) 4D on NPU/CPU, (B*H, T, D) 3D on CUDA
         """
         device = x.device
-        if device.type == "npu":
-            seq_len = x.size(0)
-            pad_seq_len = int(math.ceil(x.size(0) / 1024) * 1024)
+        is_npu_style = (device.type == "npu") or (x.dim() == 4)
+        is_3d = (x.dim() == 3)
+        if is_npu_style or is_3d:
+            seq_len = x.size(0 if is_npu_style else 1)
+            pad_seq_len = int(math.ceil(seq_len / 1024) * 1024)
         else:
             seq_len = x.size(1)
             pad_seq_len = int(math.ceil(x.size(1) / 1024) * 1024)
-        cache_key = (pad_seq_len, self.base, self.dim, self.dtype, x.device)
+        cache_key = (pad_seq_len, self.base, self.dim, self.dtype, x.device, is_npu_style, is_3d)
 
         if cache_key not in RotaryPositionalTransform.cos_sin_cached:
             # these initialization must be in float32
@@ -252,7 +253,7 @@ class RotaryPositionalTransform(torch.nn.Module):
             t = torch.arange(pad_seq_len, dtype=torch.float, device=device)
             freqs = torch.einsum("i,j->ij", t, inv_freq)
             emb = torch.cat((freqs, freqs), dim=-1)
-            if device.type == "npu":
+            if is_npu_style:
                 cos_cached = emb.cos()[:, None, None, :].to(dtype=self.dtype, device=device)
                 sin_cached = emb.sin()[:, None, None, :].to(dtype=self.dtype, device=device)
             else:
@@ -264,21 +265,21 @@ class RotaryPositionalTransform(torch.nn.Module):
             )
 
         cos_cached, sin_cached = RotaryPositionalTransform.cos_sin_cached[cache_key]
-        if device.type == "npu":
+        if is_npu_style:
             return cos_cached[:seq_len], sin_cached[:seq_len]
         else:
             return cos_cached[:, :seq_len], sin_cached[:, :seq_len]
 
     def forward(self, q: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
         """
-        q: B X T_q  X  H X D
-        k: B X T X  H X D
-        while training, T_q=T, while inference, T_q=1
+        q: (T, B, H, D) 4D on NPU/CPU, (B*H, T, D) 3D on CUDA
+        k: same format
         """
+        is_npu_style = (q.dim() == 4)
+        is_3d = (q.dim() == 3)
 
         cos, sin = self.get_cos_sin(k)
-
-        if q.device.type == "npu":
+        if is_npu_style:
             if q.shape[0] > k.shape[0]:
                 raise ValueError(f"q shape {q.shape[0]} bigger than k {k.shape[0]}")
             if q.shape[0] < k.shape[0]:

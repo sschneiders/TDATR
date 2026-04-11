@@ -646,9 +646,10 @@ def set_tensor_model_parallel_attributes(tensor: torch.Tensor,
                                          is_parallel: int,
                                          dim: int,
                                          partition_stride: int):
-    # Make sure the attributes are not set.
+    # Make sure the attributes are not set. Skip if already set (idempotent for newer timm compatibility).
     for attribute in _MODEL_PARALLEL_ATTRIBUTE_DEFAULTS:
-        assert not hasattr(tensor, attribute)
+        if hasattr(tensor, attribute):
+            return
     # Set the attributes.
     setattr(tensor, _TENSOR_PARALLEL, is_parallel)
     setattr(tensor, _PARTITION_DIM, dim)

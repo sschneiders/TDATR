@@ -13,7 +13,7 @@ from torch import Tensor
 import json
 
 from TDATR_utils.dataclass import HulkDataclass
-from TDATR.tokenizers.sp_tokenizer import SPTokenizerConfig, SPMiniGPT4Tokenizer
+from TDATR.tokenizers.sp_tokenizer import SPTokenizerConfig, SPTokenizer as SPMiniGPT4Tokenizer
 
 logger= logging.getLogger(__name__)
 

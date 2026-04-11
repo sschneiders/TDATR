@@ -78,6 +78,12 @@ class InferenceParams(object):
         k_memory, v_memory = self.key_value_memory_dict[layer_number]
         batch_start = self.batch_size_offset
         batch_end = batch_start + k.size(1)
+        if batch_end > k_memory.size(1):
+            raise AssertionError(
+                f"KV cache batch overflow: batch_end={batch_end} > k_memory.size(1)={k_memory.size(1)}, "
+                f"k.size()={k.size()}, k_memory.size()={k_memory.size()}, "
+                f"batch_size_offset={batch_start}, layer={layer_number}"
+            )
         assert batch_end <= k_memory.size(1)
         sequence_start = self.sequence_len_offset
         sequence_end = sequence_start + k.size(0)

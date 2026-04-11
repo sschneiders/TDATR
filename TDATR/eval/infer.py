@@ -1,7 +1,7 @@
 import os
 import random
 import sys
-sys.path.append("your project path")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import logging
 import argparse
 import json
@@ -47,14 +47,22 @@ def hydra_main(cfg) -> float:
 
 
 def _hydra_main(cfg, **kwargs) -> float:
-    # print(cfg.common)
+    # Fix: cfg.model is None because Hydra resolves model._name config group to None.
+    # Load CPU config directly, bypassing Hydra's broken config group resolution.
+    if cfg.model is None:
+        from omegaconf import OmegaConf
+        cfg = OmegaConf.load('/app/config_cpu.yaml')
+        OmegaConf.set_struct(cfg, False)
+        call_main(cfg, main, **kwargs)
+        return
 
     if HydraConfig.initialized():
         with open_dict(cfg):
             cfg.job_logging_cfg = OmegaConf.to_container(HydraConfig.get().job_logging, resolve=True)
 
     with omegaconf_no_object_check():
-        cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True, enum_to_str=True))
+        container = OmegaConf.to_container(cfg, resolve=True, enum_to_str=True)
+        cfg = OmegaConf.create(container)
     OmegaConf.set_struct(cfg, True)
 
     try:

@@ -109,7 +109,7 @@ class FlashCoreAttention(nn.Module):
             v = v.contiguous().view(-1, bsz, self.num_kv_head, self.head_dim).transpose(0, 1)
 
 
-        elif q.device.type == 'npu':
+        elif q.device.type != 'cuda':
             q = (
                 q.contiguous()
                 .view(
@@ -120,7 +120,7 @@ class FlashCoreAttention(nn.Module):
             k = k.contiguous().view(-1, bsz, self.num_kv_head, self.head_dim)
             v = v.contiguous().view(-1, bsz, self.num_kv_head, self.head_dim)
         
-        if (self.use_naiive or tgt_len != src_len) and q.device.type == 'npu':
+        if (self.use_naiive or tgt_len != src_len) and q.device.type != 'cuda':
             q = q.transpose(0, 1)
             k = k.transpose(0, 1)
             v = v.transpose(0, 1)
@@ -260,7 +260,7 @@ class FlashCoreAttention_row_col(nn.Module):
             v = v.contiguous().view(-1, bsz, self.num_kv_head, self.head_dim).transpose(0, 1)
 
 
-        elif q.device.type == 'npu':
+        elif q.device.type != 'cuda':
             q = (
                 q.contiguous()
                 .view(
@@ -278,7 +278,7 @@ class FlashCoreAttention_row_col(nn.Module):
         # out1= self.fwd_naiive(q,k,v, attention_mask)
         # out2= self.fwd_flash(q,k,v)
         # diff= out1-out2
-        if (self.use_naiive or tgt_len != src_len) and q.device.type == 'npu':
+        if (self.use_naiive or tgt_len != src_len) and q.device.type != 'cuda':
             q = q.transpose(0, 1)
             k = k.transpose(0, 1)
             v = v.transpose(0, 1)
@@ -368,7 +368,7 @@ class Window_CoreAttention(FlashCoreAttention):
             if q.shape[1] == 1:
                 assert seq_lengths is None, f"`fwd_onestep` don't support `seq_lengths`"
                 return self.fwd_onestep(q, k, v)
-        elif q.device.type == 'npu':
+        elif q.device.type != 'cuda':
             self.use_fa_v2 = False
 
             q = (
@@ -380,10 +380,20 @@ class Window_CoreAttention(FlashCoreAttention):
             # [src_len, batch, num_head * head_dim] -> [batch * num_head, src_len, head_dim]
             k = k.contiguous().view(-1, bsz, self.num_kv_head, self.head_dim)
             v = v.contiguous().view(-1, bsz, self.num_kv_head, self.head_dim)
+        else:
+            # CPU or other devices: reshape like NPU path
+            q = (
+                q.contiguous()
+                .view(
+                    tgt_len, bsz, self.num_head, self.head_dim
+                )
+            )
+            k = k.contiguous().view(-1, bsz, self.num_kv_head, self.head_dim)
+            v = v.contiguous().view(-1, bsz, self.num_kv_head, self.head_dim)
         
         if self.use_rope:
             q,k= self.rotary_embedding(q,k)
-        if self.use_naiive and q.device.type == 'npu':
+        if self.use_naiive and q.device.type in ('npu', 'cpu'):
             q = q.transpose(0, 1)
             k = k.transpose(0, 1)
             v = v.transpose(0, 1)

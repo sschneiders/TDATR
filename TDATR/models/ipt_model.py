@@ -194,6 +194,9 @@ class FlashCrossAttention(nn.Module):
             k = k.transpose(0, 1).contiguous()
             v = v.transpose(0, 1).contiguous()
             output = self.npu_flash(q, k, v).transpose(0, 1).contiguous()
+        else:
+            # CPU: use naive attention (T, B, H*D format)
+            output = self.naiive_attn(q, k, v)
         return output
 
     def gpu_flash(
@@ -440,7 +443,6 @@ class CrossAtten_FFN(nn.Module):
 
     def forward(self, query, kv, attn_mask=None):
         ## q [L. B C]
-        # print(f'kv shape: {kv.shape}')
         que = self.proj_q(query)
         # key = self.proj_k(kv)
         out = self.attention(

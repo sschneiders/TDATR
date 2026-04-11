@@ -66,6 +66,13 @@ class SPTokenizer(object):
         vocab_file = cfg.vocab_file + ".vocab"
         logger.info("\n\nSPTokenizer_vocab_file:{}".format(cfg.vocab_file))
         
+        # Resolve relative paths against the TDATR package directory
+        if not os.path.exists(vocab_file):
+            _tdatr_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            _resolved = os.path.join(_tdatr_dir, 'tokenizers', 'tokenizer')
+            model_file = _resolved + ".model"
+            vocab_file = _resolved + ".vocab"
+        
         assert os.path.exists(vocab_file), \
                 f"vocab file path ({vocab_file}) is not exist"
         assert os.path.exists(model_file), \
@@ -110,6 +117,25 @@ class SPTokenizer(object):
 
     def detokenize(self, token_ids):
         return self.decode(token_ids)
+
+    def __call__(self, texts):
+        """Tokenize a list of text strings. Returns (tokens_tensor, attn_masks_tensor)."""
+        import torch
+        if isinstance(texts, str):
+            texts = [texts]
+        all_tokens = []
+        all_masks = []
+        for text in texts:
+            tokens = self.encode(text)
+            all_tokens.append(tokens)
+            all_masks.append([1] * len(tokens))
+        # Pad to same length
+        max_len = max(len(t) for t in all_tokens)
+        padded = [t + [self.eod_id] * (max_len - len(t)) for t in all_tokens]
+        masks = [m + [0] * (max_len - len(m)) for m in all_masks]
+        tokens_tensor = torch.tensor(padded, dtype=torch.long)
+        masks_tensor = torch.tensor(masks, dtype=torch.long)
+        return tokens_tensor, masks_tensor
 
     def encode(self, text):
         res = self.tokenize(text)
